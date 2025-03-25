@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 
 module.exports = function(flightApi) {
   // Get airlines
@@ -141,38 +143,72 @@ module.exports = function(flightApi) {
     }
   });
   
-  // Health check endpoint
+  // Debug endpoint to show data structure
+  router.get('/api/debug', (req, res) => {
+    try {
+      const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+      const fileExists = fs.existsSync(dataPath);
+      let data = null;
+      
+      if (fileExists) {
+        data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      }
+      
+      return res.json({
+        debug: true,
+        dataFileExists: fileExists,
+        dataStructure: data,
+        environment: process.env.NODE_ENV,
+        directories: {
+          current: __dirname,
+          dataFolder: fs.existsSync(path.join(__dirname, 'data'))
+        }
+      });
+    } catch (error) {
+      return res.status(500).json({ 
+        error: error.message,
+        stack: error.stack 
+      });
+    }
+  });
+  
+  // Health check endpoint with debug info
   router.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
+    try {
+      // Get data file path
+      const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+      
+      // Check if file exists
+      const fileExists = fs.existsSync(dataPath);
+      
+      // Load data if file exists
+      let data = null;
+      if (fileExists) {
+        data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      }
+      
+      res.status(200).json({ 
+        status: 'ok',
+        debug: {
+          dataFileExists: fileExists,
+          dataStructure: data,
+          environment: process.env.NODE_ENV,
+          directories: {
+            current: __dirname,
+            dataFolder: fs.existsSync(path.join(__dirname, 'data'))
+          }
+        }
+      });
+    } catch (error) {
+      res.status(200).json({ 
+        status: 'ok',
+        debug: {
+          error: error.message,
+          stack: error.stack
+        }
+      });
+    }
   });
   
   return router;
 };
-
-
-// Add this right before the final 'return router;' line in your routes.js file
-
-// Debug endpoint to check data structure
-router.get('/api/debug', async (req, res) => {
-  try {
-    // Get the current data structure
-    const data = flightApi._loadData();
-    
-    // Send it as a response
-    return res.json({
-      dataStructure: data,
-      filesExist: {
-        dataFolder: fs.existsSync(path.join(__dirname, 'data')),
-        flightDataFile: fs.existsSync(path.join(__dirname, 'data', 'flight_data.json'))
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ 
-      error: error.message,
-      stack: error.stack 
-    });
-  }
-});
-
-// This should be the existing last line of your routes.js file
-return router;
