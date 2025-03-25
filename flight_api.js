@@ -5,7 +5,7 @@ const path = require('path');
 class FlightAPI {
   constructor(apiKey) {
     this.apiKey = apiKey;
-    this.baseUrl = 'https://api.flightlabsapi.com/v1';
+    this.baseUrl = 'https://www.goflightlabs.com';
     this.dataFolder = path.join(__dirname, 'data');
     this.flightDataFile = path.join(this.dataFolder, 'flight_data.json');
     

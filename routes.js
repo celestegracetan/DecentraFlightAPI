@@ -148,3 +148,31 @@ module.exports = function(flightApi) {
   
   return router;
 };
+
+
+// Add this right before the final 'return router;' line in your routes.js file
+
+// Debug endpoint to check data structure
+router.get('/api/debug', async (req, res) => {
+  try {
+    // Get the current data structure
+    const data = flightApi._loadData();
+    
+    // Send it as a response
+    return res.json({
+      dataStructure: data,
+      filesExist: {
+        dataFolder: fs.existsSync(path.join(__dirname, 'data')),
+        flightDataFile: fs.existsSync(path.join(__dirname, 'data', 'flight_data.json'))
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ 
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
+
+// This should be the existing last line of your routes.js file
+return router;
