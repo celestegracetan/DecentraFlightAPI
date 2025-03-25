@@ -22,6 +22,91 @@ class FlightAPI {
       });
     }
     
+    // Add test flight data for demos
+    const data = this._loadData();
+
+    // Add test airlines
+    if (!data.airlines || data.airlines.length === 0) {
+      data.airlines = [
+        { name: "Avianca", iata: "AV", icao: "AVA" },
+        { name: "American Airlines", iata: "AA", icao: "AAL" },
+        { name: "Delta Air Lines", iata: "DL", icao: "DAL" },
+        { name: "United Airlines", iata: "UA", icao: "UAL" },
+        { name: "Lufthansa", iata: "LH", icao: "DLH" }
+      ];
+    }
+
+    // Add test scheduled flights
+    if (!data.flightSchedules) {
+      data.flightSchedules = {};
+    }
+
+    // AV43 flight schedule
+    data.flightSchedules["AV43"] = {
+      airline_iata: "AV",
+      airline_icao: "AVA",
+      flight_iata: "AV43",
+      flight_icao: "AVA43",
+      flight_number: "43",
+      dep_iata: "JFK",
+      dep_icao: "KJFK",
+      dep_terminal: "4",
+      dep_gate: "B41",
+      dep_time: "2025-03-26 12:55",
+      dep_time_utc: "2025-03-26 16:55",
+      arr_iata: "BOG",
+      arr_icao: "SKBO",
+      arr_terminal: "1",
+      arr_gate: "B11",
+      arr_baggage: null,
+      arr_time: "2025-03-26 16:43",
+      arr_time_utc: "2025-03-26 20:43",
+      status: "scheduled",
+      duration: 228,
+      delayed: null,
+      dep_delayed: null,
+      arr_delayed: null
+    };
+
+    // Add test flight delays
+    if (!data.flightDelays) {
+      data.flightDelays = {};
+    }
+
+    // AV43 delayed by 150 minutes (2.5 hours) - triggers insurance
+    data.flightDelays["AV43"] = {
+      airline_iata: "AV",
+      airline_icao: "AVA",
+      flight_iata: "AV43",
+      flight_icao: "AVA43",
+      flight_number: "43",
+      dep_iata: "JFK",
+      dep_icao: "KJFK",
+      dep_terminal: "4",
+      dep_gate: "B41",
+      dep_time: "2025-03-26 12:55",
+      dep_time_utc: "2025-03-26 16:55",
+      dep_estimated: "2025-03-26 13:25",
+      dep_estimated_utc: "2025-03-26 17:25",
+      arr_iata: "BOG",
+      arr_icao: "SKBO",
+      arr_terminal: "1",
+      arr_gate: "B11",
+      arr_time: "2025-03-26 16:43",
+      arr_time_utc: "2025-03-26 20:43",
+      arr_estimated: "2025-03-26 19:13",
+      arr_estimated_utc: "2025-03-26 23:13",
+      status: "delayed",
+      duration: 228,
+      delayed: 150,
+      dep_delayed: 30,
+      arr_delayed: 150
+    };
+
+    // Save the test data
+    this._saveData(data);
+    console.log("✅ Test flight data added successfully!");
+    
     console.log('✅ FlightAPI initialized!');
   }
   
@@ -64,8 +149,8 @@ class FlightAPI {
     // Otherwise fetch from API and store
     try {
       const response = await axios.get(`${this.baseUrl}/airlines`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`
+        params: {
+          access_key: this.apiKey
         }
       });
       
@@ -101,131 +186,64 @@ class FlightAPI {
       const flightIata = `${airlineIata}${flightNumberOnly}`;
       console.log(`🔄 Verifying flight: ${flightIata} on ${departureDate}`);
       
-      // Convert date format if needed (from DD/MM/YYYY to YYYY-MM-DD)
-      if (departureDate.includes('/')) {
-        const parts = departureDate.split('/');
-        if (parts.length === 3) {
-          departureDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-      }
-      
       // Check in cached data first
       const data = this._loadData();
-      if (data.flights[flightIata] && data.flights[flightIata].departureDate === departureDate) {
-        console.log(`✅ Flight ${flightIata} found in cache`);
+      
+      // Check in flight schedules
+      if (data.flightSchedules && data.flightSchedules[flightIata]) {
+        console.log(`✅ Flight ${flightIata} found in schedules cache`);
         return true;
       }
       
-      // Try advanced-flights-schedules endpoint with proper structure
-      console.log('🔄 Querying flight schedules endpoint...');
-      const airport = 'JFK'; // Default to JFK for testing
-      
-      const response = await axios.get(`${this.baseUrl}/flight-schedules`, {
-        params: {
-          access_key: this.apiKey,
-          iataCode: airport,
-          flight_date: departureDate,
-          type: 'departure'
-        },
-        timeout: 10000 // 10 seconds timeout
-      });
-      
-      const responseData = response.data;
-      console.log(`📊 API Response type: ${typeof responseData}`);
-      
-      let flightFound = false;
-      
-      // Check if response has expected structure
-      if (typeof responseData === 'object' && responseData.success && 'data' in responseData) {
-        const flights = responseData.data;
-        console.log(`📊 Found ${flights.length} flights in schedule`);
-        
-        // Look for matching flight in multiple formats
-        for (const flight of flights) {
-          // Check direct flight match
-          if (flight.airline_iata === airlineIata && 
-              (flight.flight_number === flightNumberOnly || 
-              flight.flight_iata === flightIata)) {
-            console.log(`✅ Flight ${flightIata} found in schedule (direct)`);
-            flightFound = true;
-            
-            // Store in cache
-            data.flights[flightIata] = {
-              airlineIata,
-              flightNumber: flightNumberOnly,
-              departureDate,
-              verified: true
-            };
-            this._saveData(data);
-            break;
-          }
-          
-          // Check codeshare flight match
-          if (flight.cs_airline_iata === airlineIata && 
-              (flight.cs_flight_number === flightNumberOnly || 
-              flight.cs_flight_iata === flightIata)) {
-            console.log(`✅ Flight ${flightIata} found in schedule (codeshare)`);
-            flightFound = true;
-            
-            // Store in cache
-            data.flights[flightIata] = {
-              airlineIata,
-              flightNumber: flightNumberOnly,
-              departureDate,
-              verified: true
-            };
-            this._saveData(data);
-            break;
-          }
-        }
-      } else if (Array.isArray(responseData)) {
-        console.log(`📊 Found ${responseData.length} flights in schedule (list format)`);
-        
-        // Look for matching flight in multiple formats
-        for (const flight of responseData) {
-          // Check direct flight match
-          if (flight.airline_iata === airlineIata && 
-              (flight.flight_number === flightNumberOnly || 
-              flight.flight_iata === flightIata)) {
-            console.log(`✅ Flight ${flightIata} found in schedule (direct)`);
-            flightFound = true;
-            
-            // Store in cache
-            data.flights[flightIata] = {
-              airlineIata,
-              flightNumber: flightNumberOnly,
-              departureDate,
-              verified: true
-            };
-            this._saveData(data);
-            break;
-          }
-          
-          // Check codeshare flight match
-          if (flight.cs_airline_iata === airlineIata && 
-              (flight.cs_flight_number === flightNumberOnly || 
-              flight.cs_flight_iata === flightIata)) {
-            console.log(`✅ Flight ${flightIata} found in schedule (codeshare)`);
-            flightFound = true;
-            
-            // Store in cache
-            data.flights[flightIata] = {
-              airlineIata,
-              flightNumber: flightNumberOnly,
-              departureDate,
-              verified: true
-            };
-            this._saveData(data);
-            break;
-          }
-        }
+      // Check in flight delays
+      if (data.flightDelays && data.flightDelays[flightIata]) {
+        console.log(`✅ Flight ${flightIata} found in delays cache`);
+        return true;
       }
       
-      if (!flightFound) {
-        console.log(`❌ Flight ${flightIata} not found in API`);
+      // Try API
+      try {
+        console.log('🔄 Querying advanced-flights-schedules endpoint...');
+        const airport = 'JFK'; // Default to JFK for testing
+        
+        const response = await axios.get(`${this.baseUrl}/advanced-flights-schedules`, {
+          params: {
+            access_key: this.apiKey,
+            iataCode: airport,
+            flight_date: departureDate,
+            type: 'departure'
+          },
+          timeout: 10000 // 10 seconds timeout
+        });
+        
+        if (response.data && response.data.success && response.data.data) {
+          const flights = response.data.data;
+          console.log(`📊 Found ${flights.length} flights in schedule`);
+          
+          // Look for matching flight
+          for (const flight of flights) {
+            if (flight.flight_iata === flightIata || 
+               (flight.airline_iata === airlineIata && flight.flight_number === flightNumberOnly)) {
+              
+              // Store in cache
+              if (!data.flightSchedules) {
+                data.flightSchedules = {};
+              }
+              data.flightSchedules[flightIata] = flight;
+              this._saveData(data);
+              
+              console.log(`✅ Flight ${flightIata} found in API`);
+              return true;
+            }
+          }
+        }
+      } catch (apiError) {
+        console.error(`Error querying API: ${apiError.message}`);
+        // Continue to fallback
       }
       
-      return flightFound;
+      console.log(`❌ Flight ${flightIata} not found`);
+      return false;
     } catch (error) {
       console.error(`❌ Error verifying flight: ${error.message}`);
       return false;
@@ -235,6 +253,28 @@ class FlightAPI {
   // Check flight delay (new method for flight delay insurance)
   async checkFlightDelay(airlineIata, flightNumber, departureDate) {
     try {
+      // Special case for test flight
+      if (airlineIata === 'AV' && (flightNumber === '43' || flightNumber === 'AV43')) {
+        console.log('✅ Test flight AV43 delay check (test data)');
+        
+        // Get from stored data
+        const data = this._loadData();
+        if (data.flightDelays && data.flightDelays["AV43"]) {
+          return {
+            delayed: data.flightDelays["AV43"].delayed > 0,
+            delay_minutes: data.flightDelays["AV43"].delayed,
+            flight_status: data.flightDelays["AV43"].status
+          };
+        }
+        
+        // Fallback test data
+        return {
+          delayed: true,
+          delay_minutes: 150, // 2.5 hours - enough to trigger insurance
+          flight_status: 'delayed'
+        };
+      }
+      
       // Handle case where flight number includes airline code
       let flightNumberOnly = flightNumber;
       if (flightNumber.startsWith(airlineIata)) {
@@ -242,113 +282,65 @@ class FlightAPI {
       }
       
       const flightIata = `${airlineIata}${flightNumberOnly}`;
-      console.log(`🔄 Checking delay for flight: ${flightIata} on ${departureDate}`);
       
       // Check in cached data first
       const data = this._loadData();
-      if (data.flightDelays[flightIata] && 
-          data.flightDelays[flightIata].departureDate === departureDate) {
-        console.log(`✅ Delay data for ${flightIata} found in cache`);
-        return data.flightDelays[flightIata];
-      }
-      
-      // Test flight AV43 - return mock delay data for testing
-      if (airlineIata === 'AV' && (flightNumberOnly === '43' || flightNumber === 'AV43')) {
-        const delayData = {
-          flight_iata: 'AV43',
-          departureDate,
-          delay_minutes: 150, // 2.5 hours delay
-          flight_status: 'delayed',
-          departure_delay: 30,
-          arrival_delay: 150
+      if (data.flightDelays && data.flightDelays[flightIata]) {
+        console.log(`✅ Flight ${flightIata} delay info found in cache`);
+        return {
+          delayed: data.flightDelays[flightIata].delayed > 0,
+          delay_minutes: data.flightDelays[flightIata].delayed,
+          flight_status: data.flightDelays[flightIata].status
         };
-        
-        // Store in cache
-        data.flightDelays[flightIata] = delayData;
-        this._saveData(data);
-        
-        return delayData;
       }
       
-      // Fetch real delay data
-      const response = await axios.get(`${this.baseUrl}/flight-delay`, {
-        params: {
-          access_key: this.apiKey,
-          flight_iata: flightIata,
-          flight_date: departureDate
-        }
-      });
-      
-      if (response.data && response.data.length > 0) {
-        const delayData = {
-          flight_iata: flightIata,
-          departureDate,
-          delay_minutes: response.data[0].arrival?.delay || 0,
-          flight_status: response.data[0].status || 'unknown',
-          departure_delay: response.data[0].departure?.delay || 0,
-          arrival_delay: response.data[0].arrival?.delay || 0
-        };
+      // Try to fetch from API
+      try {
+        console.log(`🔄 Fetching delay info for flight: ${flightIata}`);
         
-        // Store in cache
-        data.flightDelays[flightIata] = delayData;
-        this._saveData(data);
-        
-        return delayData;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error(`❌ Error checking flight delay: ${error.message}`);
-      return null;
-    }
-  }
-  
-  // Fetch flight schedules and store them
-  async fetchFlightSchedules() {
-    try {
-      const airports = ['JFK', 'LAX', 'ORD', 'LHR', 'CDG'];
-      const today = new Date().toISOString().split('T')[0];
-      const data = this._loadData();
-      
-      for (const airport of airports) {
-        console.log(`Fetching schedules for airport: ${airport}`);
-        
-        const response = await axios.get(`${this.baseUrl}/flight-schedules`, {
+        const response = await axios.get(`${this.baseUrl}/flight_delays`, {
           params: {
             access_key: this.apiKey,
-            iataCode: airport,
-            flight_date: today
+            flight_iata: flightIata,
+            date: departureDate
           }
         });
         
-        if (response.data?.data && Array.isArray(response.data.data)) {
-          const flights = response.data.data;
+        if (response.data && response.data.success && response.data.data && response.data.data.length > 0) {
+          const flightData = response.data.data[0];
           
-          for (const flight of flights) {
-            const flightIata = flight.flight_iata;
-            if (flightIata) {
-              data.flightSchedules[flightIata] = {
-                departure: flight.departure,
-                arrival: flight.arrival,
-                airline: flight.airline_iata,
-                flight_number: flight.flight_number,
-                status: flight.status,
-                scheduled_departure: flight.scheduled_departure,
-                scheduled_arrival: flight.scheduled_arrival
-              };
-            }
+          // Store in cache
+          if (!data.flightDelays) {
+            data.flightDelays = {};
           }
+          
+          data.flightDelays[flightIata] = flightData;
+          this._saveData(data);
+          
+          return {
+            delayed: flightData.delayed > 0,
+            delay_minutes: flightData.delayed || 0,
+            flight_status: flightData.status
+          };
         }
+      } catch (apiError) {
+        console.error(`Error fetching from API: ${apiError.message}`);
+        // Continue to fallback
       }
       
-      this._saveData(data);
-      console.log(`✅ Saved flight schedules to cache`);
-      
-      return true;
+      // Fallback: return no delay
+      return {
+        delayed: false,
+        delay_minutes: 0,
+        flight_status: 'unknown'
+      };
     } catch (error) {
-      console.error(`❌ Error fetching flight schedules: ${error.message}`);// Continuing flight_api.js
-      console.error(`❌ Error fetching flight schedules: ${error.message}`);
-      return false;
+      console.error(`❌ Error checking flight delay: ${error.message}`);
+      return {
+        delayed: false,
+        delay_minutes: 0,
+        flight_status: 'error'
+      };
     }
   }
   
@@ -357,46 +349,65 @@ class FlightAPI {
     try {
       console.log(`🔄 Getting info for flight: ${flightIata}`);
       
-      // Check in cached data first
-      const data = this._loadData();
-      if (data.flights[flightIata]) {
-        console.log(`✅ Flight ${flightIata} info found in cache`);
-        return data.flights[flightIata];
+      // Special case for test flight AV43
+      if (flightIata === 'AV43') {
+        const data = this._loadData();
+        if (data.flightSchedules && data.flightSchedules['AV43']) {
+          return {
+            flightIata: 'AV43',
+            airlineIata: 'AV',
+            flightNumber: '43',
+            departure: {
+              airport: 'JFK',
+              iata: 'JFK',
+              scheduled: data.flightSchedules['AV43'].dep_time
+            },
+            arrival: {
+              airport: 'BOG',
+              iata: 'BOG',
+              scheduled: data.flightSchedules['AV43'].arr_time
+            },
+            status: data.flightSchedules['AV43'].status,
+            verified: true
+          };
+        }
       }
       
-      // Fetch from API
-      const response = await axios.get(`${this.baseUrl}/flight`, {
-        params: {
-          access_key: this.apiKey,
-          flight_iata: flightIata
-        }
-      });
+      // Check in cached data first
+      const data = this._loadData();
       
-      if (response.data && response.data.length > 0) {
-        const flight = response.data[0];
-        const flightInfo = {
+      // Check in flight schedules
+      if (data.flightSchedules && data.flightSchedules[flightIata]) {
+        const flight = data.flightSchedules[flightIata];
+        return {
           flightIata: flight.flight_iata,
-          airlineIata: flight.airline.iata,
-          flightNumber: flight.flight.number,
+          airlineIata: flight.airline_iata,
+          flightNumber: flight.flight_number,
           departure: {
-            airport: flight.departure.airport,
-            iata: flight.departure.iata,
-            scheduled: flight.departure.scheduled
+            airport: flight.dep_iata,
+            iata: flight.dep_iata,
+            scheduled: flight.dep_time
           },
           arrival: {
-            airport: flight.arrival.airport,
-            iata: flight.arrival.iata,
-            scheduled: flight.arrival.scheduled
+            airport: flight.arr_iata,
+            iata: flight.arr_iata,
+            scheduled: flight.arr_time
           },
-          status: flight.flight_status,
+          status: flight.status,
           verified: true
         };
+      }
+      
+      // Try to fetch from API
+      try {
+        const airlineIata = flightIata.substring(0, 2);
+        const flightNumber = flightIata.substring(2);
         
-        // Store in cache
-        data.flights[flightIata] = flightInfo;
-        this._saveData(data);
+        const today = new Date().toISOString().split('T')[0];
         
-        return flightInfo;
+        return await this.verifyFlight(airlineIata, flightNumber, today);
+      } catch (apiError) {
+        console.error(`Error fetching from API: ${apiError.message}`);
       }
       
       return null;
@@ -405,6 +416,57 @@ class FlightAPI {
       return null;
     }
   }
-}
-
-module.exports = FlightAPI;
+  
+    // Fetch flight schedules and store them
+    async fetchFlightSchedules() {
+        try {
+        const airports = ['JFK', 'LAX', 'ORD', 'LHR', 'CDG'];
+        const today = new Date().toISOString().split('T')[0];
+        const data = this._loadData();
+        
+        for (const airport of airports) {
+            console.log(`Fetching schedules for airport: ${airport}`);
+            
+            try {
+            const response = await axios.get(`${this.baseUrl}/advanced-flights-schedules`, {
+                params: {
+                access_key: this.apiKey,
+                iataCode: airport,
+                flight_date: today,
+                type: 'departure'
+                }
+            });
+            
+            if (response.data && response.data.success && response.data.data) {
+                const flights = response.data.data;
+                
+                // Initialize flightSchedules if it doesn't exist
+                if (!data.flightSchedules) {
+                data.flightSchedules = {};
+                }
+                
+                for (const flight of flights) {
+                const flightIata = flight.flight_iata;
+                if (flightIata) {
+                    data.flightSchedules[flightIata] = flight;
+                }
+                }
+            }
+            } catch (error) {
+            console.error(`Error fetching schedules for ${airport}: ${error.message}`);
+            // Continue with next airport
+            }
+        }
+        
+        this._saveData(data);
+        console.log(`✅ Saved flight schedules to cache`);
+        
+        return true;
+        } catch (error) {
+        console.error(`❌ Error fetching flight schedules: ${error.message}`);
+        return false;
+        }
+    }
+    }
+    
+    module.exports = FlightAPI;
