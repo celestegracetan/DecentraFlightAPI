@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flight Delay Insurance API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        h1, h2, h3 { color: #333; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        input, select { padding: 8px; margin: 5px 0; width: 100%; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 15px; 
+                 cursor: pointer; border-radius: 4px; margin-top: 10px; }
+        button:hover { background: #45a049; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Flight Delay Insurance API Test</h1>
+        
+        <div class="card">
+            <h2>1. Check API Health</h2>
+            <button onclick="checkHealth()">Check Health</button>
+            <div id="healthResult"></div>
+        </div>
+        
+        <div class="card">
+            <h2>2. Get Airlines</h2>
+            <button onclick="getAirlines()">Load Airlines</button>
+            <select id="airlineDropdown" style="display: none; margin-top: 10px;">
+                <option value="">Select an airline</option>
+            </select>
+            <div id="airlinesResult"></div>
+        </div>
+        
+        <div class="card">
+            <h2>3. Verify Flight</h2>
+            <div>
+                <label for="airlineCode">Airline Code:</label>
+                <input type="text" id="airlineCode" value="AV" placeholder="e.g. AV">
+            </div>
+            <div>
+                <label for="flightNumber">Flight Number:</label>
+                <input type="text" id="flightNumber" value="43" placeholder="e.g. 43">
+            </div>
+            <div>
+                <label for="departureDate">Departure Date (YYYY-MM-DD):</label>
+                <input type="text" id="departureDate" value="2025-03-26" placeholder="e.g. 2025-03-26">
+            </div>
+            <button onclick="verifyFlight()">Verify Flight</button>
+            <div id="verifyResult"></div>
+        </div>
+        
+        <div class="card">
+            <h2>4. Check Flight Delay</h2>
+            <div>
+                <label for="flightIata">Flight IATA:</label>
+                <input type="text" id="flightIata" value="AV43" placeholder="e.g. AV43">
+            </div>
+            <div>
+                <label for="delayDate">Departure Date (YYYY-MM-DD):</label>
+                <input type="text" id="delayDate" value="2025-03-26" placeholder="e.g. 2025-03-26">
+            </div>
+            <button onclick="checkDelay()">Check Delay</button>
+            <div id="delayResult"></div>
+        </div>
+    </div>
+
+    <script>
+        // Replace with your API URL
+        const API_URL = 'https://decentraflightapi.onrender.com';
+        
+        // Check API health
+        async function checkHealth() {
+            const resultDiv = document.getElementById('healthResult');
+            resultDiv.innerHTML = '<p>Checking API health...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✓ API is working!</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Error connecting to API</p>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        // Get airlines
+        async function getAirlines() {
+            const resultDiv = document.getElementById('airlinesResult');
+            const dropdown = document.getElementById('airlineDropdown');
+            
+            resultDiv.innerHTML = '<p>Loading airlines...</p>';
+            dropdown.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/airlines`);
+                const data = await response.json();
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    // Populate dropdown
+                    dropdown.innerHTML = '<option value="">Select an airline</option>';
+                    
+                    data.forEach(airline => {
+                        const option = document.createElement('option');
+                        option.value = airline.iata;
+                        option.textContent = `${airline.name} (${airline.iata})`;
+                        dropdown.appendChild(option);
+                    });
+                    
+                    dropdown.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Found ${data.length} airlines</p>
+                        <pre>${JSON.stringify(data.slice(0, 3), null, 2)}...</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ No airlines found</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Error loading airlines</p>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        // Verify flight
+        async function verifyFlight() {
+            const resultDiv = document.getElementById('verifyResult');
+            const airlineCode = document.getElementById('airlineCode').value;
+            const flightNumber = document.getElementById('flightNumber').value;
+            const departureDate = document.getElementById('departureDate').value;
+            
+            if (!airlineCode || !flightNumber || !departureDate) {
+                resultDiv.innerHTML = '<p class="error">✗ Please fill in all fields</p>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p>Verifying flight...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/verify-flight`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        airline_iata: airlineCode,
+                        flight_number: flightNumber,
+                        departure_date: departureDate
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.valid) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Flight verified successfully</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ Flight not verified</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Error verifying flight</p>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        // Check flight delay
+        async function checkDelay() {
+            const resultDiv = document.getElementById('delayResult');
+            const flightIata = document.getElementById('flightIata').value;
+            const delayDate = document.getElementById('delayDate').value;
+            
+            if (!flightIata || !delayDate) {
+                resultDiv.innerHTML = '<p class="error">✗ Please fill in all fields</p>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p>Checking flight delay...</p>';
+            
+            try {
+                const response = await fetch(
+                    `${API_URL}/api/flight-delay?flight_iata=${flightIata}&departure_date=${delayDate}`
+                );
+                
+                const data = await response.json();
+                
+                // Highlight delay for insurance
+                let insuranceMessage = '';
+                if (data.delay_minutes >= 120) { // 2 hours or more
+                    insuranceMessage = '<p class="success"><strong>✓ Eligible for insurance payout (delay ≥ 2 hours)</strong></p>';
+                } else {
+                    insuranceMessage = '<p>✗ Not eligible for insurance payout (delay < 2 hours)</p>';
+                }
+                
+                resultDiv.innerHTML = `
+                    ${insuranceMessage}
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Error checking flight delay</p>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

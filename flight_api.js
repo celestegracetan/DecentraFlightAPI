@@ -167,13 +167,20 @@ class FlightAPI {
       return [];
     }
   }
+
   
-  // Verify flight (equivalent to verify_flight in Python)
   async verifyFlight(airlineIata, flightNumber, departureDate) {
     try {
-      // Special case for test flight
+      // Special case for test flight with specific date check
       if (airlineIata === 'AV' && (flightNumber === '43' || flightNumber === 'AV43')) {
-        console.log('✅ Test flight AV43 automatically verified');
+        console.log('✅ Test flight AV43 verification with date check');
+        
+        // If a specific date is provided for AV43, check against our test date
+        if (departureDate && departureDate !== '2025-03-26') {
+          console.log(`❌ Flight AV43 exists but not on date ${departureDate}`);
+          return false;
+        }
+        
         return true;
       }
       
@@ -189,16 +196,32 @@ class FlightAPI {
       // Check in cached data first
       const data = this._loadData();
       
-      // Check in flight schedules
+      // Check in flight schedules with date verification
       if (data.flightSchedules && data.flightSchedules[flightIata]) {
-        console.log(`✅ Flight ${flightIata} found in schedules cache`);
-        return true;
+        const scheduledFlight = data.flightSchedules[flightIata];
+        const flightDate = scheduledFlight.dep_time.split(' ')[0]; // Extract YYYY-MM-DD part
+        
+        if (flightDate === departureDate) {
+          console.log(`✅ Flight ${flightIata} found in schedules cache for date ${departureDate}`);
+          return true;
+        } else {
+          console.log(`❌ Flight ${flightIata} exists but not on date ${departureDate}`);
+          return false;
+        }
       }
       
-      // Check in flight delays
+      // Check in flight delays with date verification
       if (data.flightDelays && data.flightDelays[flightIata]) {
-        console.log(`✅ Flight ${flightIata} found in delays cache`);
-        return true;
+        const delayedFlight = data.flightDelays[flightIata];
+        const flightDate = delayedFlight.dep_time.split(' ')[0]; // Extract YYYY-MM-DD part
+        
+        if (flightDate === departureDate) {
+          console.log(`✅ Flight ${flightIata} found in delays cache for date ${departureDate}`);
+          return true;
+        } else {
+          console.log(`❌ Flight ${flightIata} exists but not on date ${departureDate}`);
+          return false;
+        }
       }
       
       // Try API
