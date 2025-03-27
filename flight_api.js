@@ -139,34 +139,61 @@ class FlightAPI {
   // Get airlines (equivalent to get_airlines in Python)
   async getAirlines() {
     const data = this._loadData();
-    
-    // If we have airlines cached, return them
+  
+    // Return cached data if available
     if (data.airlines && data.airlines.length > 0) {
-      console.log('Loaded airlines from cache');
+      console.log('✅ Loaded airlines from cache');
       return data.airlines;
     }
-    
-    // Otherwise fetch from API and store
+  
     try {
+      console.log('🔄 Fetching airlines from API...');
       const response = await axios.get(`${this.baseUrl}/airlines`, {
         params: {
           access_key: this.apiKey
         }
       });
-      
-      if (response.data && Array.isArray(response.data)) {
-        data.airlines = response.data;
-        this._saveData(data);
-        console.log(`✅ Saved ${response.data.length} airlines to cache`);
-        return response.data;
+  
+      // Validate API response
+      if (!response.data || !response.data.success || !Array.isArray(response.data.data)) {
+        console.error('❌ Invalid API response: ', response.data);
+        return [];
       }
-      
-      return [];
+  
+      // Extract valid airline information
+      const airlines = response.data.data.map(airline => ({
+        name: airline.name || 'Unknown',
+        country_code: airline.country_code || 'N/A',
+        iata_code: airline.iata_code || 'N/A',
+        icao_code: airline.icao_code || 'N/A',
+        callsign: airline.callsign || 'N/A',
+        website: airline.website || 'N/A',
+        is_passenger: airline.is_passenger !== null ? !!airline.is_passenger : 'Unknown',
+        is_cargo: airline.is_cargo !== null ? !!airline.is_cargo : 'Unknown'
+      }));
+  
+      // Save airlines to cache
+      if (airlines.length > 0) {
+        data.airlines = airlines;
+        this._saveData(data);
+        console.log(`✅ Saved ${airlines.length} airlines to cache`);
+      } else {
+        console.warn('⚠️ No airlines found in API response');
+      }
+  
+      return airlines;
     } catch (error) {
-      console.error('Error fetching airlines:', error.message);
+      console.error('❌ Error fetching airlines:', {
+        message: error.message,
+        response: error.response?.data || 'No response data',
+        status: error.response?.status || 'Unknown'
+      });
+  
       return [];
     }
   }
+  
+  
 
   
   async verifyFlight(airlineIata, flightNumber, departureDate) {
