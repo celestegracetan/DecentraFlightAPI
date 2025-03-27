@@ -7,16 +7,32 @@ module.exports = function(flightApi) {
   // Get airlines
   router.get('/api/airlines', async (req, res) => {
     try {
-      const airlines = await flightApi.getAirlines();
+      // Get data file path
+      const dataPath = path.join(__dirname, 'data', 'flight_data.json');
       
+      // Read the JSON file
+      const rawData = fs.readFileSync(dataPath, 'utf8');
+      const data = JSON.parse(rawData);
+      
+      // Extract airlines
+      const airlines = data.airlines || [];
+      
+      // Log the number of airlines retrieved
+      console.log(`Retrieved ${airlines.length} airlines`);
+      
+      // Check if airlines exist
       if (!airlines || airlines.length === 0) {
-        return res.status(500).json({ error: 'No airlines found' });
+        return res.status(404).json({ error: 'No airlines found' });
       }
       
+      // Return the airlines
       return res.json(airlines);
     } catch (error) {
-      console.error(`Error in /api/airlines: ${error.message}`);
-      return res.status(500).json({ error: error.message });
+      console.error('Error in /api/airlines:', error);
+      return res.status(500).json({ 
+        error: 'Failed to retrieve airlines',
+        details: error.message 
+      });
     }
   });
   

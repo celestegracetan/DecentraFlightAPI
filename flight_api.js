@@ -180,7 +180,7 @@ class FlightAPI {
       return [];
     }
   }
-
+s
   async verifyFlight(airlineIata, flightNumber, departureDate) {
     try {
       // Special case for test flight with specific date check
@@ -399,7 +399,6 @@ class FlightAPI {
       };
     }
   }
-
   // Get flight information by flight number
   async getFlightInfo(flightIata) {
     try {
@@ -473,56 +472,56 @@ class FlightAPI {
     }
   }
   
-  // Fetch flight schedules and store them
-  async fetchFlightSchedules() {
-    try {
-      const airports = ['JFK', 'LAX', 'ORD', 'LHR', 'CDG'];
-      const today = new Date().toISOString().split('T')[0];
-      const data = this._loadData();
-      
-      for (const airport of airports) {
-        console.log(`Fetching schedules for airport: ${airport}`);
-        
+    // Fetch flight schedules and store them
+    async fetchFlightSchedules() {
         try {
-          const response = await axios.get(`${this.baseUrl}/advanced-flights-schedules`, {
-            params: {
-              access_key: this.apiKey,
-              iataCode: airport,
-              flight_date: today,
-              type: 'departure'
-            }
-          });
-          
-          if (response.data && response.data.success && response.data.data) {
-            const flights = response.data.data;
+        const airports = ['JFK', 'LAX', 'ORD', 'LHR', 'CDG'];
+        const today = new Date().toISOString().split('T')[0];
+        const data = this._loadData();
+        
+        for (const airport of airports) {
+            console.log(`Fetching schedules for airport: ${airport}`);
             
-            // Initialize flightSchedules if it doesn't exist
-            if (!data.flightSchedules) {
-              data.flightSchedules = {};
-            }
+            try {
+            const response = await axios.get(`${this.baseUrl}/advanced-flights-schedules`, {
+                params: {
+                access_key: this.apiKey,
+                iataCode: airport,
+                flight_date: today,
+                type: 'departure'
+                }
+            });
             
-            for (const flight of flights) {
-              const flightIata = flight.flight_iata;
-              if (flightIata) {
-                data.flightSchedules[flightIata] = flight;
-              }
+            if (response.data && response.data.success && response.data.data) {
+                const flights = response.data.data;
+                
+                // Initialize flightSchedules if it doesn't exist
+                if (!data.flightSchedules) {
+                data.flightSchedules = {};
+                }
+                
+                for (const flight of flights) {
+                const flightIata = flight.flight_iata;
+                if (flightIata) {
+                    data.flightSchedules[flightIata] = flight;
+                }
+                }
             }
-          }
-        } catch (error) {
-          console.error(`Error fetching schedules for ${airport}: ${error.message}`);
-          // Continue with next airport
+            } catch (error) {
+            console.error(`Error fetching schedules for ${airport}: ${error.message}`);
+            // Continue with next airport
+            }
         }
-      }
-      
-      this._saveData(data);
-      console.log(`✅ Saved flight schedules to cache`);
-      
-      return true;
-    } catch (error) {
-      console.error(`❌ Error fetching flight schedules: ${error.message}`);
-      return false;
+        
+        this._saveData(data);
+        console.log(`✅ Saved flight schedules to cache`);
+        
+        return true;
+        } catch (error) {
+        console.error(`❌ Error fetching flight schedules: ${error.message}`);
+        return false;
+        }
     }
-  }
-}
-
-module.exports = FlightAPI;
+    }
+    
+    module.exports = FlightAPI;
