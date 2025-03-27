@@ -298,13 +298,8 @@ class FlightAPI {
         };
       }
       
-      // Handle case where flight number includes airline code
-      let flightNumberOnly = flightNumber;
-      if (flightNumber.startsWith(airlineIata)) {
-        flightNumberOnly = flightNumber.substring(airlineIata.length);
-      }
-      
-      const flightIata = `${airlineIata}${flightNumberOnly}`;
+      // Ensure correct flight IATA format
+      const flightIata = `${airlineIata}${flightNumber}`;
       
       // Check in cached data first
       const data = this._loadData();
@@ -319,14 +314,30 @@ class FlightAPI {
       
       // Try to fetch from API
       try {
-        console.log(`🔄 Fetching delay info for flight: ${flightIata}`);
+        console.log(`🔄 Fetching delay info for flight:`, {
+          airlineIata,
+          flightNumber,
+          departureDate,
+          baseUrl: this.baseUrl,
+          apiKeyPresent: !!this.apiKey
+        });
         
         const response = await axios.get(`${this.baseUrl}/flight_delays`, {
           params: {
             access_key: this.apiKey,
-            flight_iata: flightIata,
-            date: departureDate
-          }
+            airline_iata: airlineIata,
+            flight_number: flightNumber,
+            date: departureDate,
+            type: 'departures',
+            delay: 120  // Minimum 2-hour (120-minute) delay for insurance
+          },
+          timeout: 10000 // 10-second timeout
+        });
+        
+        // Log full response details
+        console.log('Full API Response:', {
+          status: response.status,
+          data: JSON.stringify(response.data, null, 2)
         });
         
         if (response.data && response.data.success && response.data.data && response.data.data.length > 0) {
@@ -345,9 +356,16 @@ class FlightAPI {
             delay_minutes: flightData.delayed || 0,
             flight_status: flightData.status
           };
+        } else {
+          console.log('No matching flight data found in API response');
         }
       } catch (apiError) {
-        console.error(`Error fetching from API: ${apiError.message}`);
+        console.error('Detailed API Error:', {
+          message: apiError.message,
+          responseData: apiError.response ? JSON.stringify(apiError.response.data) : 'No response data',
+          responseStatus: apiError.response ? apiError.response.status : 'No status',
+          requestConfig: apiError.config ? JSON.stringify(apiError.config.params) : 'No config'
+        });
         // Continue to fallback
       }
       
@@ -358,7 +376,10 @@ class FlightAPI {
         flight_status: 'unknown'
       };
     } catch (error) {
-      console.error(`❌ Error checking flight delay: ${error.message}`);
+      console.error(`❌ Error checking flight delay:`, {
+        message: error.message,
+        stack: error.stack
+      });
       return {
         delayed: false,
         delay_minutes: 0,
@@ -366,7 +387,6 @@ class FlightAPI {
       };
     }
   }
-  
   // Get flight information by flight number
   async getFlightInfo(flightIata) {
     try {
