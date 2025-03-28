@@ -11,7 +11,8 @@
         "cors": "^2.8.5",
         "dotenv": "^16.4.7",
         "express": "^4.21.2",
-        "fs-extra": "^11.3.0"
+        "fs-extra": "^11.3.0",
+        "pg": "^8.14.1"
     },
     "repository": {
         "type": "git",
