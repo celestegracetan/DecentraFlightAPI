@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
+
+// PostgreSQL connection configuration
+const pool = new Pool({
+  connectionString: 'postgresql://postgres.lhjufhdvrctcnxrjtpld:password@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres'
+});
 
 module.exports = function(flightApi) {
   // Get airlines
@@ -889,20 +895,23 @@ router.post('/api/update-flight-delay', async (req, res) => {
       message: `❌ Error updating flight delay: ${error.message}` 
     });
   }
-});  // Endpoint to update flight data
+}); 
+// Endpoint to update flight data
 router.post('/api/update-flight-data', async (req, res) => {
+  const client = await pool.connect();
+  
   try {
-    const updatedFlight = req.body;
+    const { flight_iata, dep_time_update, airline_code, flight_number } = req.body;
     
     // Validate required fields
-    if (!updatedFlight.flight_iata) {
+    if (!flight_iata) {
       return res.status(400).json({ 
         success: false, 
         message: '❌ Flight IATA code is required' 
       });
     }
     
-    // Load current data
+    // Load current data from JSON file
     const dataPath = path.join(__dirname, 'data', 'flight_data.json');
     let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
     
@@ -912,48 +921,86 @@ router.post('/api/update-flight-data', async (req, res) => {
     }
     
     // Retrieve existing flight data
-    const existingFlight = data.flightSchedules[updatedFlight.flight_iata];
+    let existingFlight = data.flightSchedules[flight_iata];
     
-    // If flight doesn't exist, return error
+    // If flight doesn't exist, create a new entry
     if (!existingFlight) {
-      return res.status(404).json({ 
-        success: false, 
-        message: '❌ Flight not found' 
-      });
+      // Extract airline code and flight number if not provided
+      const extractedAirlineCode = airline_code || flight_iata.substring(0, 2);
+      const extractedFlightNumber = flight_number || flight_iata.substring(2);
+      
+      existingFlight = {
+        airline_iata: extractedAirlineCode,
+        flight_iata: flight_iata,
+        flight_number: extractedFlightNumber,
+        dep_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        arr_time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        status: 'scheduled'
+      };
     }
     
     // Handle date update
-    if (updatedFlight.dep_time_update) {
-      // Extract existing time from current dep_time
-      const existingDateTime = new Date(existingFlight.dep_time);
-      const newDate = new Date(updatedFlight.dep_time_update);
+    let updatedDepDate = null;
+    if (dep_time_update) {
+      // Parse the new date
+      const newDate = new Date(dep_time_update);
+      
+      // Extract existing date-time
+      const existingDepDateTime = existingFlight.dep_time 
+        ? new Date(existingFlight.dep_time) 
+        : new Date();
       
       // Preserve existing time, only update date
-      existingDateTime.setFullYear(newDate.getFullYear());
-      existingDateTime.setMonth(newDate.getMonth());
-      existingDateTime.setDate(newDate.getDate());
+      existingDepDateTime.setFullYear(newDate.getFullYear());
+      existingDepDateTime.setMonth(newDate.getMonth());
+      existingDepDateTime.setDate(newDate.getDate());
       
-      // Update departure and arrival times
-      existingFlight.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      // Update departure time
+      existingFlight.dep_time = existingDepDateTime.toISOString().slice(0, 19).replace('T', ' ');
       existingFlight.dep_time_utc = existingFlight.dep_time;
       
-      // Adjust arrival time to maintain original duration
-      const arrDateTime = new Date(existingFlight.arr_time);
-      arrDateTime.setFullYear(newDate.getFullYear());
-      arrDateTime.setMonth(newDate.getMonth());
-      arrDateTime.setDate(newDate.getDate());
+      // Format date for database update
+      updatedDepDate = existingDepDateTime.toISOString().split('T')[0];
       
-      existingFlight.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
-      existingFlight.arr_time_utc = existingFlight.arr_time;
+      // If arrival time exists, adjust it to maintain original duration
+      if (existingFlight.arr_time) {
+        const existingArrDateTime = new Date(existingFlight.arr_time);
+        existingArrDateTime.setFullYear(newDate.getFullYear());
+        existingArrDateTime.setMonth(newDate.getMonth());
+        existingArrDateTime.setDate(newDate.getDate());
+        
+        existingFlight.arr_time = existingArrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingFlight.arr_time_utc = existingFlight.arr_time;
+      }
     }
     
-    // Save updated data
+    // Save updated flight data to JSON file
+    data.flightSchedules[flight_iata] = existingFlight;
     fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    // Update PostgreSQL database
+    let dbResult = null;
+    if (updatedDepDate) {
+      try {
+        // Update policies table with new departure date
+        const updateQuery = `
+          UPDATE policies 
+          SET departure_date = $1 
+          WHERE flight_id = $2
+          RETURNING *
+        `;
+        dbResult = await client.query(updateQuery, [updatedDepDate, flight_iata]);
+      } catch (dbError) {
+        console.error('Database update error:', dbError);
+        // Continue even if database update fails
+      }
+    }
     
     return res.json({
       success: true,
       message: '✅ Flight data updated successfully',
-      updatedFlight: existingFlight
+      updatedFlight: existingFlight,
+      databaseUpdate: dbResult ? dbResult.rows : null
     });
   } catch (error) {
     console.error(`Error in /api/update-flight-data: ${error.message}`);
@@ -961,6 +1008,9 @@ router.post('/api/update-flight-data', async (req, res) => {
       success: false,
       message: `❌ Error updating flight data: ${error.message}` 
     });
+  } finally {
+    // Always release the client back to the pool
+    client.release();
   }
 });
 
