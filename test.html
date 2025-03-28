@@ -83,6 +83,25 @@
             <button onclick="editFlightData()">Update Flight Data</button>
             <div id="editFlightResult"></div>
         </div>
+
+        <div class="card">
+            <h2>6. Edit Flight Delay</h2>
+            <div>
+                <label for="editDelayFlightIata">Flight IATA:</label>
+                <input type="text" id="editDelayFlightIata" value="AV43" placeholder="e.g. AV43">
+            </div>
+            <div class="input-group">
+                <input type="text" id="editDelayYear" placeholder="Departure Year (e.g. 2025)">
+                <input type="text" id="editDelayMonth" placeholder="Departure Month (e.g. 03)">
+                <input type="text" id="editDelayDay" placeholder="Departure Day (e.g. 26)">
+            </div>
+            <div>
+                <label for="editDelayMinutes">Delay Minutes:</label>
+                <input type="number" id="editDelayMinutes" placeholder="Delay in minutes (e.g. 150)">
+            </div>
+            <button onclick="editFlightDelay()">Update Flight Delay</button>
+            <div id="editDelayResult"></div>
+        </div>
     </div>
 
     <script>
@@ -297,6 +316,67 @@
                 `;
             }
         }
-    </script>
-</body>
-</html>
+
+        // Edit flight delay
+        async function editFlightDelay() {
+            const resultDiv = document.getElementById('editDelayResult');
+            const flightIata = document.getElementById('editDelayFlightIata').value;
+            
+            // Validate input
+            if (!flightIata) {
+                resultDiv.innerHTML = '<p class="error">✗ Please enter a Flight IATA code</p>';
+                return;
+            }
+            
+            // Construct updated flight delay data object
+            const updatedDelay = {
+                flight_iata: flightIata
+            };
+            
+            // Departure date construction
+            const delayYear = document.getElementById('editDelayYear').value;
+            const delayMonth = document.getElementById('editDelayMonth').value;
+            const delayDay = document.getElementById('editDelayDay').value;
+            
+            if (delayYear && delayMonth && delayDay) {
+                updatedDelay.delay_date = `${delayYear}-${delayMonth.padStart(2, '0')}-${delayDay.padStart(2, '0')}`;
+            }
+            
+            // Delay minutes
+            const delayMinutes = document.getElementById('editDelayMinutes').value;
+            if (delayMinutes !== '') {
+                updatedDelay.delay_minutes = Number(delayMinutes);
+            }
+            
+            resultDiv.innerHTML = '<p>Updating flight delay...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/update-flight-delay`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedDelay)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Flight delay updated successfully</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Failed to update flight delay</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `
+                <p class="error">✗ Error updating flight delay</p>
+                <pre>${error.message}</pre>
+            `;
+        }
+    }
+</script>
