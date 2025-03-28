@@ -967,7 +967,7 @@ router.post('/api/update-flight-data', async (req, res) => {
 // Endpoint to update flight delay
 router.post('/api/update-flight-delay', async (req, res) => {
   try {
-    const { flight_iata, delay_date, delay_minutes } = req.body;
+    const { flight_iata, delay_minutes } = req.body;
     
     // Validate required fields
     if (!flight_iata) {
@@ -986,49 +986,49 @@ router.post('/api/update-flight-delay', async (req, res) => {
       data.flightDelays = {};
     }
     
-    // Retrieve existing flight delay
-    const existingDelay = data.flightDelays[flight_iata];
+    // Try to find the flight in schedules to get the departure date
+    const flightSchedule = data.flightSchedules[flight_iata];
     
-    // If flight delay doesn't exist, return error
+    // Retrieve existing flight delay or create new one
+    let existingDelay = data.flightDelays[flight_iata];
+    
+    // If no existing delay, create a new one
     if (!existingDelay) {
-      return res.status(404).json({ 
-        success: false, 
-        message: '❌ Flight delay not found' 
-      });
+      // Extract airline code and flight number
+      const airline_iata = flight_iata.substring(0, 2);
+      const flight_number = flight_iata.substring(2);
+      
+      existingDelay = {
+        airline_iata: airline_iata,
+        airline_icao: '',
+        flight_iata: flight_iata,
+        flight_icao: '',
+        flight_number: flight_number,
+        dep_iata: flightSchedule?.dep_iata || '',
+        dep_icao: flightSchedule?.dep_icao || '',
+        dep_terminal: flightSchedule?.dep_terminal || '',
+        dep_gate: flightSchedule?.dep_gate || '',
+        dep_time: flightSchedule?.dep_time || null,
+        dep_time_utc: flightSchedule?.dep_time_utc || null,
+        arr_iata: flightSchedule?.arr_iata || '',
+        arr_icao: flightSchedule?.arr_icao || '',
+        arr_terminal: flightSchedule?.arr_terminal || '',
+        arr_gate: flightSchedule?.arr_gate || '',
+        arr_time: flightSchedule?.arr_time || null,
+        arr_time_utc: flightSchedule?.arr_time_utc || null,
+        status: 'scheduled',
+        duration: flightSchedule?.duration || null,
+        delayed: 0,
+        dep_delayed: 0,
+        arr_delayed: 0
+      };
     }
     
-    // Handle date update
-    if (delay_date) {
-      // Extract existing time from current dep_time
-      const existingDateTime = new Date(existingDelay.dep_time);
-      const newDate = new Date(delay_date);
-      
-      // Preserve existing time, only update date
-      existingDateTime.setFullYear(newDate.getFullYear());
-      existingDateTime.setMonth(newDate.getMonth());
-      existingDateTime.setDate(newDate.getDate());
-      
-      // Update departure and arrival times
-      existingDelay.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
-      existingDelay.dep_time_utc = existingDelay.dep_time;
-      
-      // Adjust arrival time 
-      const arrDateTime = new Date(existingDelay.arr_time);
-      arrDateTime.setFullYear(newDate.getFullYear());
-      arrDateTime.setMonth(newDate.getMonth());
-      arrDateTime.setDate(newDate.getDate());
-      
-      existingDelay.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
-      existingDelay.arr_time_utc = existingDelay.arr_time;
-    }
-    
-    // Update delay minutes if provided
-    if (delay_minutes !== undefined) {
-      existingDelay.delayed = Number(delay_minutes);
-      existingDelay.dep_delayed = Number(delay_minutes);
-      existingDelay.arr_delayed = Number(delay_minutes);
-      existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
-    }
+    // Update delay minutes
+    existingDelay.delayed = Number(delay_minutes);
+    existingDelay.dep_delayed = Number(delay_minutes);
+    existingDelay.arr_delayed = Number(delay_minutes);
+    existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
     
     // Save updated data
     data.flightDelays[flight_iata] = existingDelay;
@@ -1036,7 +1036,7 @@ router.post('/api/update-flight-delay', async (req, res) => {
     
     return res.json({
       success: true,
-      message: '✅ Flight delay data updated successfully',
+      message: '✅ Flight delay updated successfully',
       updatedDelay: existingDelay
     });
   } catch (error) {
