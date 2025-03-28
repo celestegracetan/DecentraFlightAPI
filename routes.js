@@ -257,6 +257,735 @@ router.post('/api/update-flight-delay', async (req, res) => {
       data.flightDelays = {};
     }
     
+    // Retrieve existing flight delay or create new one
+    let existingDelay = data.flightDelays[flight_iata];
+    
+    // If flight delay doesn't exist, create a new entry
+    if (!existingDelay) {
+      // Extract airline code and flight number
+      const airline_iata = flight_iata.substring(0, 2);
+      const flight_number = flight_iata.substring(2);
+      
+      existingDelay = {
+        airline_iata: airline_iata,
+        airline_icao: '',
+        flight_iata: flight_iata,
+        flight_icao: '',
+        flight_number: flight_number,
+        dep_iata: '',
+        dep_icao: '',
+        dep_terminal: '',
+        dep_gate: '',
+        dep_time: null,
+        dep_time_utc: null,
+        arr_iata: '',
+        arr_icao: '',
+        arr_terminal: '',
+        arr_gate: '',
+        arr_time: null,
+        arr_time_utc: null,
+        status: 'scheduled',
+        duration: null,
+        delayed: 0,
+        dep_delayed: 0,
+        arr_delayed: 0
+      };
+    }
+    
+    // Update delay minutes if provided
+    if (delay_minutes !== undefined) {
+      existingDelay.delayed = Number(delay_minutes);
+      existingDelay.dep_delayed = Number(delay_minutes);
+      existingDelay.arr_delayed = Number(delay_minutes);
+      existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
+    }
+    
+    // If a specific date is provided, update only the date part while preserving existing time
+    if (delay_date) {
+      const newDate = new Date(delay_date);
+      
+      if (existingDelay.dep_time) {
+        const existingDateTime = new Date(existingDelay.dep_time);
+        existingDateTime.setFullYear(newDate.getFullYear());
+        existingDateTime.setMonth(newDate.getMonth());
+        existingDateTime.setDate(newDate.getDate());
+        
+        existingDelay.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingDelay.dep_time_utc = existingDelay.dep_time;
+      }
+      
+      if (existingDelay.arr_time) {
+        const existingArrDateTime = new Date(existingDelay.arr_time);
+        existingArrDateTime.setFullYear(newDate.getFullYear());
+        existingArrDateTime.setMonth(newDate.getMonth());
+        existingArrDateTime.setDate(newDate.getDate());
+        
+        existingDelay.arr_time = existingArrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingDelay.arr_time_utc = existingDelay.arr_time;
+      }
+    }
+    
+    // Save updated data
+    data.flightDelays[flight_iata] = existingDelay;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight delay data updated successfully',
+      updatedDelay: existingDelay
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-delay: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight delay: ${error.message}` 
+    });
+  }
+});  // Endpoint to update flight delay
+router.post('/api/update-flight-delay', async (req, res) => {
+  try {
+    const { flight_iata, delay_date, delay_minutes } = req.body;
+    
+    // Validate required fields
+    if (!flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight delays exist
+    if (!data.flightDelays) {
+      data.flightDelays = {};
+    }
+    
+    // Retrieve existing flight delay or create new one
+    let existingDelay = data.flightDelays[flight_iata];
+    
+    // If flight delay doesn't exist, create a new entry
+    if (!existingDelay) {
+      // Extract airline code and flight number
+      const airline_iata = flight_iata.substring(0, 2);
+      const flight_number = flight_iata.substring(2);
+      
+      existingDelay = {
+        airline_iata: airline_iata,
+        airline_icao: '',
+        flight_iata: flight_iata,
+        flight_icao: '',
+        flight_number: flight_number,
+        dep_iata: '',
+        dep_icao: '',
+        dep_terminal: '',
+        dep_gate: '',
+        dep_time: null,
+        dep_time_utc: null,
+        arr_iata: '',
+        arr_icao: '',
+        arr_terminal: '',
+        arr_gate: '',
+        arr_time: null,
+        arr_time_utc: null,
+        status: 'scheduled',
+        duration: null,
+        delayed: 0,
+        dep_delayed: 0,
+        arr_delayed: 0
+      };
+    }
+    
+    // Handle date update
+    if (delay_date) {
+      // Extract existing time from current dep_time
+      const existingDateTime = new Date(existingDelay.dep_time || new Date());
+      const newDate = new Date(delay_date);
+      
+      // Preserve existing time, only update date
+      existingDateTime.setFullYear(newDate.getFullYear());
+      existingDateTime.setMonth(newDate.getMonth());
+      existingDateTime.setDate(newDate.getDate());
+      
+      // Update departure and arrival times
+      existingDelay.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingDelay.dep_time_utc = existingDelay.dep_time;
+      
+      // Adjust arrival time 
+      const arrDateTime = new Date(existingDelay.arr_time || existingDateTime);
+      arrDateTime.setFullYear(newDate.getFullYear());
+      arrDateTime.setMonth(newDate.getMonth());
+      arrDateTime.setDate(newDate.getDate());
+      
+      existingDelay.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingDelay.arr_time_utc = existingDelay.arr_time;
+    }
+    
+    // Update delay minutes if provided
+    if (delay_minutes !== undefined) {
+      existingDelay.delayed = Number(delay_minutes);
+      existingDelay.dep_delayed = Number(delay_minutes);
+      existingDelay.arr_delayed = Number(delay_minutes);
+      existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
+    }
+    
+    // Save updated data
+    data.flightDelays[flight_iata] = existingDelay;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight delay data updated successfully',
+      updatedDelay: existingDelay
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-delay: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight delay: ${error.message}` 
+    });
+  }
+});  // Endpoint to update flight data
+router.post('/api/update-flight-data', async (req, res) => {
+  try {
+    const updatedFlight = req.body;
+    
+    // Validate required fields
+    if (!updatedFlight.flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight schedules exist
+    if (!data.flightSchedules) {
+      data.flightSchedules = {};
+    }
+    
+    // Retrieve existing flight data
+    const existingFlight = data.flightSchedules[updatedFlight.flight_iata];
+    
+    // If flight doesn't exist, return error
+    if (!existingFlight) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '❌ Flight not found' 
+      });
+    }
+    
+    // Handle date update
+    if (updatedFlight.dep_time_update) {
+      // Extract existing time from current dep_time
+      const existingDateTime = new Date(existingFlight.dep_time);
+      const newDate = new Date(updatedFlight.dep_time_update);
+      
+      // Preserve existing time, only update date
+      existingDateTime.setFullYear(newDate.getFullYear());
+      existingDateTime.setMonth(newDate.getMonth());
+      existingDateTime.setDate(newDate.getDate());
+      
+      // Update departure and arrival times
+      existingFlight.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingFlight.dep_time_utc = existingFlight.dep_time;
+      
+      // Adjust arrival time to maintain original duration
+      const arrDateTime = new Date(existingFlight.arr_time);
+      arrDateTime.setFullYear(newDate.getFullYear());
+      arrDateTime.setMonth(newDate.getMonth());
+      arrDateTime.setDate(newDate.getDate());
+      
+      existingFlight.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingFlight.arr_time_utc = existingFlight.arr_time;
+    }
+    
+    // Save updated data
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight data updated successfully',
+      updatedFlight: existingFlight
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-data: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight data: ${error.message}` 
+    });
+  }
+});
+
+// Endpoint to update flight data (only date/time)
+router.post('/api/update-flight-data', async (req, res) => {
+  try {
+    const updatedFlight = req.body;
+    
+    // Validate required fields
+    if (!updatedFlight.flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight schedules exist
+    if (!data.flightSchedules) {
+      data.flightSchedules = {};
+    }
+    
+    // Retrieve existing flight data
+    const existingFlight = data.flightSchedules[updatedFlight.flight_iata];
+    
+    // If flight doesn't exist, return error
+    if (!existingFlight) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '❌ Flight not found' 
+      });
+    }
+    
+    // Handle date update
+    if (updatedFlight.dep_time_update) {
+      // Extract existing time from current dep_time
+      const existingDateTime = new Date(existingFlight.dep_time);
+      const newDate = new Date(updatedFlight.dep_time_update);
+      
+      // Preserve existing time, only update date
+      existingDateTime.setFullYear(newDate.getFullYear());
+      existingDateTime.setMonth(newDate.getMonth());
+      existingDateTime.setDate(newDate.getDate());
+      
+      // Update departure and arrival times
+      existingFlight.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingFlight.dep_time_utc = existingFlight.dep_time;
+      
+      // Adjust arrival time to maintain original duration
+      const arrDateTime = new Date(existingFlight.arr_time);
+      arrDateTime.setFullYear(newDate.getFullYear());
+      arrDateTime.setMonth(newDate.getMonth());
+      arrDateTime.setDate(newDate.getDate());
+      
+      existingFlight.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingFlight.arr_time_utc = existingFlight.arr_time;
+    }
+    
+    // Save updated data
+    data.flightSchedules[updatedFlight.flight_iata] = existingFlight;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight data updated successfully',
+      updatedFlight: existingFlight
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-data: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight data: ${error.message}` 
+    });
+  }
+});
+
+// Endpoint to update flight delay (only delay minutes)
+router.post('/api/update-flight-delay', async (req, res) => {
+  try {
+    const { flight_iata, delay_minutes } = req.body;
+    
+    // Validate required fields
+    if (!flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight delays exist
+    if (!data.flightDelays) {
+      data.flightDelays = {};
+    }
+    
+    // Retrieve existing flight delay or create new one
+    let existingDelay = data.flightDelays[flight_iata];
+    
+    // If flight delay doesn't exist, create a new entry
+    if (!existingDelay) {
+      // Extract airline code and flight number
+      const airline_iata = flight_iata.substring(0, 2);
+      const flight_number = flight_iata.substring(2);
+      
+      existingDelay = {
+        airline_iata: airline_iata,
+        airline_icao: '',
+        flight_iata: flight_iata,
+        flight_icao: '',
+        flight_number: flight_number,
+        dep_iata: '',
+        dep_icao: '',
+        dep_terminal: '',
+        dep_gate: '',
+        dep_time: null,
+        dep_time_utc: null,
+        arr_iata: '',
+        arr_icao: '',
+        arr_terminal: '',
+        arr_gate: '',
+        arr_time: null,
+        arr_time_utc: null,
+        status: 'scheduled',
+        duration: null,
+        delayed: 0,
+        dep_delayed: 0,
+        arr_delayed: 0
+      };
+    }
+    
+    // Update delay minutes
+    existingDelay.delayed = Number(delay_minutes);
+    existingDelay.dep_delayed = Number(delay_minutes);
+    existingDelay.arr_delayed = Number(delay_minutes);
+    existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
+    
+    // Save updated data
+    data.flightDelays[flight_iata] = existingDelay;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight delay updated successfully',
+      updatedDelay: existingDelay
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-delay: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight delay: ${error.message}` 
+    });
+  }
+});  // Endpoint to update flight delay
+router.post('/api/update-flight-delay', async (req, res) => {
+  try {
+    const { flight_iata, delay_date, delay_minutes } = req.body;
+    
+    // Validate required fields
+    if (!flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight delays exist
+    if (!data.flightDelays) {
+      data.flightDelays = {};
+    }
+    
+    // Retrieve existing flight delay or create new one
+    let existingDelay = data.flightDelays[flight_iata];
+    
+    // If flight delay doesn't exist, create a new entry
+    if (!existingDelay) {
+      // Extract airline code and flight number
+      const airline_iata = flight_iata.substring(0, 2);
+      const flight_number = flight_iata.substring(2);
+      
+      existingDelay = {
+        airline_iata: airline_iata,
+        airline_icao: '',
+        flight_iata: flight_iata,
+        flight_icao: '',
+        flight_number: flight_number,
+        dep_iata: '',
+        dep_icao: '',
+        dep_terminal: '',
+        dep_gate: '',
+        dep_time: null,
+        dep_time_utc: null,
+        arr_iata: '',
+        arr_icao: '',
+        arr_terminal: '',
+        arr_gate: '',
+        arr_time: null,
+        arr_time_utc: null,
+        status: 'scheduled',
+        duration: null,
+        delayed: 0,
+        dep_delayed: 0,
+        arr_delayed: 0
+      };
+    }
+    
+    // Update delay minutes if provided
+    if (delay_minutes !== undefined) {
+      existingDelay.delayed = Number(delay_minutes);
+      existingDelay.dep_delayed = Number(delay_minutes);
+      existingDelay.arr_delayed = Number(delay_minutes);
+      existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
+    }
+    
+    // If a specific date is provided, update only the date part while preserving existing time
+    if (delay_date) {
+      const newDate = new Date(delay_date);
+      
+      if (existingDelay.dep_time) {
+        const existingDateTime = new Date(existingDelay.dep_time);
+        existingDateTime.setFullYear(newDate.getFullYear());
+        existingDateTime.setMonth(newDate.getMonth());
+        existingDateTime.setDate(newDate.getDate());
+        
+        existingDelay.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingDelay.dep_time_utc = existingDelay.dep_time;
+      }
+      
+      if (existingDelay.arr_time) {
+        const existingArrDateTime = new Date(existingDelay.arr_time);
+        existingArrDateTime.setFullYear(newDate.getFullYear());
+        existingArrDateTime.setMonth(newDate.getMonth());
+        existingArrDateTime.setDate(newDate.getDate());
+        
+        existingDelay.arr_time = existingArrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingDelay.arr_time_utc = existingDelay.arr_time;
+      }
+    }
+    
+    // Save updated data
+    data.flightDelays[flight_iata] = existingDelay;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight delay data updated successfully',
+      updatedDelay: existingDelay
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-delay: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight delay: ${error.message}` 
+    });
+  }
+});  // Endpoint to update flight delay
+router.post('/api/update-flight-delay', async (req, res) => {
+  try {
+    const { flight_iata, delay_date, delay_minutes } = req.body;
+    
+    // Validate required fields
+    if (!flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight delays exist
+    if (!data.flightDelays) {
+      data.flightDelays = {};
+    }
+    
+    // Retrieve existing flight delay or create new one
+    let existingDelay = data.flightDelays[flight_iata];
+    
+    // If flight delay doesn't exist, create a new entry
+    if (!existingDelay) {
+      // Extract airline code and flight number
+      const airline_iata = flight_iata.substring(0, 2);
+      const flight_number = flight_iata.substring(2);
+      
+      existingDelay = {
+        airline_iata: airline_iata,
+        airline_icao: '',
+        flight_iata: flight_iata,
+        flight_icao: '',
+        flight_number: flight_number,
+        dep_iata: '',
+        dep_icao: '',
+        dep_terminal: '',
+        dep_gate: '',
+        dep_time: null,
+        dep_time_utc: null,
+        arr_iata: '',
+        arr_icao: '',
+        arr_terminal: '',
+        arr_gate: '',
+        arr_time: null,
+        arr_time_utc: null,
+        status: 'scheduled',
+        duration: null,
+        delayed: 0,
+        dep_delayed: 0,
+        arr_delayed: 0
+      };
+    }
+    
+    // Handle date update
+    if (delay_date) {
+      // Extract existing time from current dep_time
+      const existingDateTime = new Date(existingDelay.dep_time || new Date());
+      const newDate = new Date(delay_date);
+      
+      // Preserve existing time, only update date
+      existingDateTime.setFullYear(newDate.getFullYear());
+      existingDateTime.setMonth(newDate.getMonth());
+      existingDateTime.setDate(newDate.getDate());
+      
+      // Update departure and arrival times
+      existingDelay.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingDelay.dep_time_utc = existingDelay.dep_time;
+      
+      // Adjust arrival time 
+      const arrDateTime = new Date(existingDelay.arr_time || existingDateTime);
+      arrDateTime.setFullYear(newDate.getFullYear());
+      arrDateTime.setMonth(newDate.getMonth());
+      arrDateTime.setDate(newDate.getDate());
+      
+      existingDelay.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingDelay.arr_time_utc = existingDelay.arr_time;
+    }
+    
+    // Update delay minutes if provided
+    if (delay_minutes !== undefined) {
+      existingDelay.delayed = Number(delay_minutes);
+      existingDelay.dep_delayed = Number(delay_minutes);
+      existingDelay.arr_delayed = Number(delay_minutes);
+      existingDelay.status = delay_minutes > 0 ? 'delayed' : 'scheduled';
+    }
+    
+    // Save updated data
+    data.flightDelays[flight_iata] = existingDelay;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight delay data updated successfully',
+      updatedDelay: existingDelay
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-delay: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight delay: ${error.message}` 
+    });
+  }
+});  // Endpoint to update flight data
+router.post('/api/update-flight-data', async (req, res) => {
+  try {
+    const updatedFlight = req.body;
+    
+    // Validate required fields
+    if (!updatedFlight.flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight schedules exist
+    if (!data.flightSchedules) {
+      data.flightSchedules = {};
+    }
+    
+    // Retrieve existing flight data
+    const existingFlight = data.flightSchedules[updatedFlight.flight_iata];
+    
+    // If flight doesn't exist, return error
+    if (!existingFlight) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '❌ Flight not found' 
+      });
+    }
+    
+    // Handle date update
+    if (updatedFlight.dep_time_update) {
+      // Extract existing time from current dep_time
+      const existingDateTime = new Date(existingFlight.dep_time);
+      const newDate = new Date(updatedFlight.dep_time_update);
+      
+      // Preserve existing time, only update date
+      existingDateTime.setFullYear(newDate.getFullYear());
+      existingDateTime.setMonth(newDate.getMonth());
+      existingDateTime.setDate(newDate.getDate());
+      
+      // Update departure and arrival times
+      existingFlight.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingFlight.dep_time_utc = existingFlight.dep_time;
+      
+      // Adjust arrival time to maintain original duration
+      const arrDateTime = new Date(existingFlight.arr_time);
+      arrDateTime.setFullYear(newDate.getFullYear());
+      arrDateTime.setMonth(newDate.getMonth());
+      arrDateTime.setDate(newDate.getDate());
+      
+      existingFlight.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+      existingFlight.arr_time_utc = existingFlight.arr_time;
+    }
+    
+    // Save updated data
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    
+    return res.json({
+      success: true,
+      message: '✅ Flight data updated successfully',
+      updatedFlight: existingFlight
+    });
+  } catch (error) {
+    console.error(`Error in /api/update-flight-data: ${error.message}`);
+    return res.status(500).json({ 
+      success: false,
+      message: `❌ Error updating flight data: ${error.message}` 
+    });
+  }
+});
+
+// Endpoint to update flight delay
+router.post('/api/update-flight-delay', async (req, res) => {
+  try {
+    const { flight_iata, delay_date, delay_minutes } = req.body;
+    
+    // Validate required fields
+    if (!flight_iata) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Flight IATA code is required' 
+      });
+    }
+    
+    // Load current data
+    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Ensure flight delays exist
+    if (!data.flightDelays) {
+      data.flightDelays = {};
+    }
+    
     // Retrieve existing flight delay
     const existingDelay = data.flightDelays[flight_iata];
     
