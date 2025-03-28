@@ -14,6 +14,8 @@
         pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
         .success { color: green; }
         .error { color: red; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        .input-group input { flex-grow: 1; }
     </style>
 </head>
 <body>
@@ -65,6 +67,21 @@
             </div>
             <button onclick="checkDelay()">Check Delay</button>
             <div id="delayResult"></div>
+        </div>
+
+        <div class="card">
+            <h2>5. Edit Flight Data</h2>
+            <div>
+                <label for="editFlightIata">Flight IATA:</label>
+                <input type="text" id="editFlightIata" value="VA8031" placeholder="e.g. VA8031">
+            </div>
+            <div class="input-group">
+                <input type="text" id="editDepYear" placeholder="Departure Year (e.g. 2025)">
+                <input type="text" id="editDepMonth" placeholder="Departure Month (e.g. 03)">
+                <input type="text" id="editDepDay" placeholder="Departure Day (e.g. 27)">
+            </div>
+            <button onclick="editFlightData()">Update Flight Data</button>
+            <div id="editFlightResult"></div>
         </div>
     </div>
 
@@ -218,6 +235,64 @@
             } catch (error) {
                 resultDiv.innerHTML = `
                     <p class="error">✗ Error checking flight delay</p>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+
+        // Edit flight data
+        async function editFlightData() {
+            const resultDiv = document.getElementById('editFlightResult');
+            const flightIata = document.getElementById('editFlightIata').value;
+            
+            // Validate input
+            if (!flightIata) {
+                resultDiv.innerHTML = '<p class="error">✗ Please enter a Flight IATA code</p>';
+                return;
+            }
+            
+            // Construct updated flight data object
+            const updatedFlight = {
+                flight_iata: flightIata
+            };
+            
+            // Departure date construction
+            const depYear = document.getElementById('editDepYear').value;
+            const depMonth = document.getElementById('editDepMonth').value;
+            const depDay = document.getElementById('editDepDay').value;
+            
+            if (depYear && depMonth && depDay) {
+                // Preserve existing time by only changing date part
+                updatedFlight.dep_time_update = `${depYear}-${depMonth.padStart(2, '0')}-${depDay.padStart(2, '0')}`;
+            }
+            
+            resultDiv.innerHTML = '<p>Updating flight data...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/update-flight-data`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedFlight)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Flight data updated successfully</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ Failed to update flight data</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Error updating flight data</p>
                     <pre>${error.message}</pre>
                 `;
             }
