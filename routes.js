@@ -161,82 +161,79 @@ module.exports = function(flightApi) {
   
 
 // Endpoint to update flight data
-router.post('/api/update-flight-data', async (req, res) => {
-  try {
-    const updatedFlight = req.body;
-    
-    // Validate required fields
-    if (!updatedFlight.flight_iata) {
-      return res.status(400).json({ 
-        success: false, 
-        message: '❌ Flight IATA code is required' 
+  router.post('/api/update-flight-data', async (req, res) => {
+    try {
+      const updatedFlight = req.body;
+      
+      // Validate required fields
+      if (!updatedFlight.flight_iata) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '❌ Flight IATA code is required' 
+        });
+      }
+      
+      // Load current data
+      const dataPath = path.join(__dirname, 'data', 'flight_data.json');
+      let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      
+      // Ensure flight schedules exist
+      if (!data.flightSchedules) {
+        data.flightSchedules = {};
+      }
+      
+      // Retrieve existing flight data
+      const existingFlight = data.flightSchedules[updatedFlight.flight_iata];
+      
+      // If flight doesn't exist, return error
+      if (!existingFlight) {
+        return res.status(404).json({ 
+          success: false, 
+          message: '❌ Flight not found' 
+        });
+      }
+      
+      // Handle date update
+      if (updatedFlight.dep_time_update) {
+        // Extract existing time from current dep_time
+        const existingDateTime = new Date(existingFlight.dep_time);
+        const newDate = new Date(updatedFlight.dep_time_update);
+        
+        // Preserve existing time, only update date
+        existingDateTime.setFullYear(newDate.getFullYear());
+        existingDateTime.setMonth(newDate.getMonth());
+        existingDateTime.setDate(newDate.getDate());
+        
+        // Update departure and arrival times
+        existingFlight.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingFlight.dep_time_utc = existingFlight.dep_time;
+        
+        // Adjust arrival time to maintain original duration
+        const arrDateTime = new Date(existingFlight.arr_time);
+        arrDateTime.setFullYear(newDate.getFullYear());
+        arrDateTime.setMonth(newDate.getMonth());
+        arrDateTime.setDate(newDate.getDate());
+        
+        existingFlight.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        existingFlight.arr_time_utc = existingFlight.arr_time;
+      }
+      
+      // Save updated data
+      fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+      
+      return res.json({
+        success: true,
+        message: '✅ Flight data updated successfully',
+        updatedFlight: existingFlight
+      });
+    } catch (error) {
+      console.error(`Error in /api/update-flight-data: ${error.message}`);
+      return res.status(500).json({ 
+        success: false,
+        message: `❌ Error updating flight data: ${error.message}` 
       });
     }
-    
-    // Load current data
-    const dataPath = path.join(__dirname, 'data', 'flight_data.json');
-    let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-    
-    // Ensure flight schedules exist
-    if (!data.flightSchedules) {
-      data.flightSchedules = {};
-    }
-    
-    // Retrieve existing flight data
-    const existingFlight = data.flightSchedules[updatedFlight.flight_iata];
-    
-    // If flight doesn't exist, return error
-    if (!existingFlight) {
-      return res.status(404).json({ 
-        success: false, 
-        message: '❌ Flight not found' 
-      });
-    }
-    
-    // Handle date update
-    if (updatedFlight.dep_time_update) {
-      // Extract existing time from current dep_time
-      const existingDateTime = new Date(existingFlight.dep_time);
-      const newDate = new Date(updatedFlight.dep_time_update);
-      
-      // Preserve existing time, only update date
-      existingDateTime.setFullYear(newDate.getFullYear());
-      existingDateTime.setMonth(newDate.getMonth());
-      existingDateTime.setDate(newDate.getDate());
-      
-      // Update departure and arrival times
-      existingFlight.dep_time = existingDateTime.toISOString().slice(0, 19).replace('T', ' ');
-      existingFlight.dep_time_utc = existingFlight.dep_time;
-      
-      // Adjust arrival time to maintain original duration
-      const arrDateTime = new Date(existingFlight.arr_time);
-      arrDateTime.setFullYear(newDate.getFullYear());
-      arrDateTime.setMonth(newDate.getMonth());
-      arrDateTime.setDate(newDate.getDate());
-      
-      existingFlight.arr_time = arrDateTime.toISOString().slice(0, 19).replace('T', ' ');
-      existingFlight.arr_time_utc = existingFlight.arr_time;
-    }
-    
-    // Save updated data
-    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
-    
-    return res.json({
-      success: true,
-      message: '✅ Flight data updated successfully',
-      updatedFlight: existingFlight
-    });
-  } catch (error) {
-    console.error(`Error in /api/update-flight-data: ${error.message}`);
-    return res.status(500).json({ 
-      success: false,
-      message: `❌ Error updating flight data: ${error.message}` 
-    });
-  }
-});
-
-return router;
-};
+  });
 
   // Debug endpoint to show data structure
   router.get('/api/debug', (req, res) => {
