@@ -25,17 +25,17 @@ console.log('✅ FLIGHTLAB_API_TOKEN loaded successfully!');
 const flightApi = new FlightAPI(FLIGHTLAB_API_TOKEN);
 
 
-app.get('/test.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'test.html'));
-});
-
-
 // Middleware
 app.use(cors());
 app.use(express.json());
 
 // Routes
 app.use(routes(flightApi));
+
+
+app.get('/test.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'test.html'));
+});
 
 // Start server
 app.listen(PORT, async () => {
